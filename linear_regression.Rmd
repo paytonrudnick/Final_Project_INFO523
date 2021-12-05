@@ -40,9 +40,6 @@ When you click the **Knit** button a document will be generated that includes bo
 #Now focusing on Selecting the Best Predictors for Linear Regression in R, going to focus on using the leaps package to do a lot of analysis
 #Leaps is a regression subset tool that performs an exhaustive search to determine the most influential predictors of the model
 #The best Predictors are selected by evaluating the combination that leads to the best adjusted r^2 and Mallow's CP. 
-
-setwd("C:/Users/payto/Downloads")
-
 homes <- read.csv('home.csv')
 str(homes)
 reduce_df <- homes[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'RoofMatl', 'ExterCond', 'Foundation', 'BsmtCond', 'TotalBsmtSF', 'Heating', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
