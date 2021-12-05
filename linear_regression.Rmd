@@ -1,0 +1,119 @@
+---
+title: "Linear Regression"
+author: "Payton Rudnick"
+date: "11/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+install.packages("randomForest")
+install.packages("faux")
+install.packages("DataExplorer")
+install.packages("Rtools")
+install.packages("tidyverse")
+library(tidyverse)
+library(dplyr)
+install.packages("caret")
+library(caret)
+install.packages("skimr")
+library(skimr)
+install.packages("mlbench")
+library(mlbench)
+library(faux)
+library(DataExplorer)
+library(randomForest)
+library(ggplot2)
+library(e1071)
+install.packages("leaps")
+library(leaps)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+#Now focusing on Selecting the Best Predictors for Linear Regression in R, going to focus on using the leaps package to do a lot of analysis
+#Leaps is a regression subset tool that performs an exhaustive search to determine the most influential predictors of the model
+#The best Predictors are selected by evaluating the combination that leads to the best adjusted r^2 and Mallow's CP. 
+
+setwd("C:/Users/payto/Downloads")
+
+homes <- read.csv('home.csv')
+str(homes)
+reduce_df <- homes[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'RoofMatl', 'ExterCond', 'Foundation', 'BsmtCond', 'TotalBsmtSF', 'Heating', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+#Using the DataExplorer package for the first time to get a look at the data
+str(reduce_df)
+plot_intro(reduce_df)
+plot_bar(reduce_df)
+
+further_reduce_df <- reduce_df[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'ExterCond', 'Foundation', 'TotalBsmtSF', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+final_df <- na.omit(further_reduce_df)
+
+final_df <- final_df %>% mutate_at(c("MSZoning", "BldgType", "HouseStyle", "RoofStyle", "ExterCond", "Foundation", "HeatingQC", "CentralAir", "KitchenQual", "FireplaceQu", "GarageType", "GarageCond", "PavedDrive"), as.factor) %>% mutate_if(is.numeric, scale)
+
+final_df
+
+#To start off nothing has changed in terms of cleaning the data. It has stayed consistent. 
+#Before selecting the best subset of predictors for the regression, let's run a simple linear regression on the dataset with all predictors. 
+#This will help us get a good base adjusted r^2 for comparision
+
+lm1 <- lm(final_df,formula=SalePrice ~.)
+summary(lm1)
+
+#From our first run-through, the base R-Squared is 0.7491 and the Residual Standard Error is 0.5009. The relationship was found to be significant with a p-value < 0.05.
+
+#Now we are going to run the regsubsets function on all variables within final_df
+
+
+#When I first ran this command, I set the nvmax=NULL which basically did not set any limits on the number of variables. I let this run for 9 hours and still failed to get a reusult. 
+#I think this is because it is running the all subset regression, which is the most computationally expensive. 
+#12 was the max value I was able to set for nvmax without having my computer have issues. Still took over 30 minutes with nvmax value = 12. 
+best_subset <- regsubsets(SalePrice~., data =final_df, nbest = 1, nvmax = 12, force.in = NULL, force.out = NULL, method = "exhaustive", really.big=T)
+
+summary_best_subset <- summary(best_subset)
+summary_best_subset
+as.data.frame(summary_best_subset$outmat)
+
+#Time to see the best number of predictors 
+which.max(summary_best_subset$adjr2)
+#After running this command is seems like the best number of predictors is 12 to get the best model possible. 
+
+#This table provides details on which predictors to use for the model. 
+summary_best_subset$which[12,]
+#So, we can now see that Lot Frontage, Lot Area, Building Type Town House, House Style (1Story), Overall Quality of the home, Overall Condition of the home, Year the home was built, 1st story square footage, 2nd story square footage, Kitchen Quality (GD), Kitchen Quality (TA), and Garage Area are the best predictors. 
+
+#Now that we know the predictors, we can run linear regression and evaluate the results. 
+
+model_with_selected_pred <- lm(SalePrice ~ LotFrontage + LotArea + BldgType + HouseStyle + OverallQual + OverallCond + YearBuilt + X1stFlrSF + X2ndFlrSF + KitchenQual + GarageArea, data = final_df)
+
+summary(model_with_selected_pred)
+
+
+#Now, its time to run linear regression on the dataset based on the features that were found to be important. 
+
+#final_df
+
+lit_linear_regression <- lm(SalePrice ~ OverallQual + TotalBsmtSF + YearBuilt + GarageArea + X1stFlrSF + BedroomAbvGr + ScreenPorch + Fireplaces, data = final_df)
+summary(lit_linear_regression)
+
+
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
