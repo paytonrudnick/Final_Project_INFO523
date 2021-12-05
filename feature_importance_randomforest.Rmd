@@ -1,0 +1,144 @@
+---
+title: "Combined_Submission"
+output: html_notebook
+---
+install.packages("randomForest")
+install.packages("faux")
+install.packages("DataExplorer")
+install.packages("Rtools")
+install.packages("tidyverse")
+library(tidyverse)
+library(dplyr)
+install.packages("caret")
+library(caret)
+install.packages("skimr")
+library(skimr)
+install.packages("mlbench")
+library(mlbench)
+library(faux)
+library(DataExplorer)
+library(randomForest)
+library(ggplot2)
+library(e1071)
+install.packages("leaps")
+library(leaps)
+
+```{r}
+
+#We start with data reading, pre-processing, and visualizations before running our linear regression and random forest algorithms. 
+
+homes <- read.csv('home.csv')
+str(homes)
+reduce_df <- homes[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'RoofMatl', 'ExterCond', 'Foundation', 'BsmtCond', 'TotalBsmtSF', 'Heating', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+str(reduce_df)
+plot_intro(reduce_df)
+plot_bar(reduce_df)
+
+
+further_reduce_df <- reduce_df[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'ExterCond', 'Foundation', 'TotalBsmtSF', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+#Getting ride of the null values 
+final_df <- na.omit(further_reduce_df)
+
+#Another round of using DataExplorer package to look at the data and make sure all variables are cleaned and ready for analysis. 
+str(final_df)
+plot_intro(final_df)
+plot_bar(final_df)
+#Usually a really cool correlation plot but is hard to see because of all the missing variables. 
+plot_correlation(final_df)
+
+#Going to recode the categorial varaibles and center and scale the numerical features in the dataset. 
+set.seed(15)
+final_df <- final_df %>% mutate_at(c("MSZoning", "BldgType", "HouseStyle", "RoofStyle", "ExterCond", "Foundation", "HeatingQC", "CentralAir", "KitchenQual", "FireplaceQu", "GarageType", "GarageCond", "PavedDrive"), as.factor) %>% mutate_if(is.numeric, scale)
+
+
+str(final_df)
+#Going to rename the column labels because they are confusing to individuals who don't understand the data 
+
+colnames(final_df) <- c("Zoning", "Frontage Lot", "Lot Area", "Building Type", "House Style", "Overall Home Quality", "Overall Home Condition", "Year Built", "Year Remodeled", "Roof Style", "Exterior Condition", "Foundation", "Total Basement (ft^2)", "Heating Quality", "Central Air", "1st Floor (ft^2)", "2nd Floor (ft^2)", "Full Baths", "Half Baths", "Bedrooms", "Kitchens", "Kitchen Quality", "Fireplaces", "Fireplace Quality", "Garage Type", "Garage Area", "Garage Condition", "Paved Driveway", "Screen Porch", "Pool Area", "Month Sold", "Year Sold", "SalesPrice")
+
+
+#Time for feature Selection. To do this I plan to implement RFE. The rfe function is associated with the caret package 
+#Note: Apparentely the caret package includes a number of algorithms for RFE, such as random forest, naive Bayes, bagged trees, and linear regression
+#I am going to first try random forest because it has a built in mechanism for computng feature importance. I can then apply this to my linear regression model. 
+#Going to also use 10-fold cross validation with 7 repeats 
+controls <- rfeControl(functions = rfFuncs, method = "repeatedcv", repeats = 7, number = 10) 
+
+#Saving the feature seperately
+only_features <- final_df %>% select(-SalesPrice) %>% as.data.frame()
+#only_features
+price <- final_df$SalesPrice
+
+inner_train <- createDataPartition(price, p = .80, list = FALSE)[,1]
+
+#inner_train
+
+feature_train <- only_features[ inner_train, ]
+feature_test  <- only_features[-inner_train, ]
+
+price_train <- price[ inner_train]
+price_test  <- price[-inner_train]
+
+#Time to actually run the RFE for Decison Trees
+#I specified Decision Trees in the steps above by using rfFuncs
+#For time purposes and because I don't have the fastest computer, I decided to run it to find solutions with 5, 10, and 15 features. 
+result <- rfe(x = feature_train, y = price_train, sizes = c(1:5, 10, 15), rfeControl = controls)
+
+#This command displays the top features
+feature_importance <- data.frame(f = row.names(varImp(result))[1:15], importance = varImp(result)[1:15, 1])
+
+#Since I want to show this visually, it would be extremely difficult to display the top 15 features in a graph. Therefore, I am going to get the data ready to display the top 7. Easier for the audience to read a graph with less variables. 
+Limited_feature_selection <- data.frame(f = row.names(varImp(result))[1:7], importance = varImp(result)[1:7, 1])
+
+ggplot(data = Limited_feature_selection, aes(x = reorder(f, -importance), y = importance, fill = f)) +
+  geom_bar(stat="identity") + labs(x = "Features", y = "Variable Importance", size = 5) + ggtitle("Feature Importance \nRandom Forest") +
+  geom_text(aes(label = round(importance, 1)), vjust=2, color="black", size=6) + theme_bw() + theme(legend.position = "none")
+
+#Time to see our accuracy 
+postResample(predict(result, feature_test), price_test)
+#Recieved the Following Results:
+#RMSE: 0.4410221
+#RSquared: 0.7988249
+#MAE: 0.2846601
+
+
+#Now that we know what features have the greatest impact for predicting the sales price, lets run a linear regression model 
+#Online tutorials said it is best to normalize the data so the values are between 0 and 1
+#The dataframe final_df has already been pre-processed from the previous step for that reason. 
+#Features that are going to be used for the model: 
+#Overall Home Quality, Total Basement (ft^2), 2nd Floor (ft^2), 1st Floor (ft^2), Garage Area, Year Built, Kitchen Quality, Lot Area, Half Baths, Full Baths, House Style, Foundation, Year Remodeled, Bedrooms, Frontage Lot
+
+final_df$`Overall Home Quality`
+final_df$`Total Basement (ft^2)`
+final_df$`2nd Floor (ft^2)`
+final_df$`1st Floor (ft^2)`
+final_df$`Garage Area`
+final_df$`Year Built`
+final_df$`Kitchen Quality`
+final_df$`Lot Area`
+final_df$`Half Baths`
+final_df$`Full Baths`
+final_df$`House Style`
+final_df$Foundation
+final_df$`Year Remodeled`
+final_df$Bedrooms
+final_df$`Frontage Lot`
+
+
+
+
+
+
+
+
+
+
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
