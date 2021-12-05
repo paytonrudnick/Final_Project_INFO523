@@ -1,0 +1,100 @@
+---
+title: "Random Forest"
+author: "Payton Rudnick"
+date: "11/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages("randomForest")
+install.packages("faux")
+install.packages("DataExplorer")
+install.packages("Rtools")
+install.packages("tidyverse")
+library(tidyverse)
+library(dplyr)
+install.packages("caret")
+library(caret)
+install.packages("skimr")
+library(skimr)
+install.packages("mlbench")
+library(mlbench)
+library(faux)
+library(DataExplorer)
+library(randomForest)
+library(ggplot2)
+library(e1071)
+
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+homes <- read.csv('home.csv')
+str(homes)
+reduce_df <- homes[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'RoofMatl', 'ExterCond', 'Foundation', 'BsmtCond', 'TotalBsmtSF', 'Heating', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+#Using the DataExplorer package for the first time to get a look at the data
+str(reduce_df)
+plot_intro(reduce_df)
+plot_bar(reduce_df)
+
+further_reduce_df <- reduce_df[, c('MSZoning', 'LotFrontage', 'LotArea', 'BldgType', 'HouseStyle', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'RoofStyle', 'ExterCond', 'Foundation', 'TotalBsmtSF', 'HeatingQC', 'CentralAir', 'X1stFlrSF', 'X2ndFlrSF', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'KitchenQual', 'Fireplaces', 'FireplaceQu', 'GarageType', 'GarageArea', 'GarageCond', 'PavedDrive', 'ScreenPorch', 'PoolArea', 'MoSold', 'YrSold', 'SalePrice')]
+
+final_df <- na.omit(further_reduce_df)
+
+final_df <- final_df %>% mutate_at(c("MSZoning", "BldgType", "HouseStyle", "RoofStyle", "ExterCond", "Foundation", "HeatingQC", "CentralAir", "KitchenQual", "FireplaceQu", "GarageType", "GarageCond", "PavedDrive"), as.factor) %>% mutate_if(is.numeric, scale)
+
+final_df
+
+#Our features are everything else
+x <- final_df[,1:32]
+#Our target variable is SalesPrice
+y <- final_df[,33]
+
+#10 folds, repeat 5 times 
+control <- trainControl(method='repeatedcv', number=10, repeats=5)
+
+#We want to evaluate accuracy for this model 
+metric_eval <- "Accuracy"
+set.seed(10)
+#The number randomely selected is mtry 
+mtry <- sqrt(ncol(x))
+tunegrid <- expand.grid(.mtry=mtry)
+rf_forest <- train(SalePrice~., data=final_df, method='rf',metric_eval='Accuracy', tuneGrid=tunegrid, trControl = control)
+print(rf_forest)
+
+#Now lets try grid search for the model. Keeping it consistent with 10 fold and repeating is 5 times 
+controls <- trainControl(method='repeatedcv', number=10, repeats=5, search='grid')
+
+#We want 15 values for mtry to tune the model. The train function will change the number of entry variable at each split according to tune grid 
+tune_the_grid <- expand.grid(.mtry = (1:15))
+
+rf_gridsearch <- train(SalePrice ~ ., data = final_df, method = 'rf', metric_eval='Accuracy', tuneGrid = tunegrid)
+
+print(rf_gridsearch)
+
+#Last but not least, in randomForest(), caret provides a function tuneRF() for searching best optimal mtry values given for your data. We will depend on OOBError to define the most accurate mtry for our model which have the least OOBEError. 
+set.seed(12)
+the_best_mtry <- tuneRF(x, y, stepFactor = 1.5, improve = 1e-5, ntreeTry = 500)
+
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
